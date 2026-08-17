@@ -85,7 +85,7 @@ def login():
     return jsonify({'message': 'Login successful!', 'user': user_info})
 
 # API Route: Book a Table
-@app.route('/book-table', methods=['POST'])
+@app.route('/api/book-table', methods=['POST'])
 def book_table():
     data = request.json
     name = data.get('name')

@@ -123,7 +123,7 @@ export default function BookMyTable() {
 
     setLoading(true);
     try {
-      const response = await fetch('/book-table', {
+      const response = await fetch('/api/book-table', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
