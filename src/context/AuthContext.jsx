@@ -44,13 +44,28 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const googleLogin = async (payload) => {
+    const response = await fetch('/api/google-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Google Login failed');
+    }
+    localStorage.setItem('brewtopia_user', JSON.stringify(data.user));
+    setUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem('brewtopia_user');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, register, login, logout, googleLogin }}>
       {children}
     </AuthContext.Provider>
   );

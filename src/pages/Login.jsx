@@ -1,14 +1,15 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import { usePopup } from '../context/PopupContext';
 
 export default function Login() {
-  const { login, register } = useContext(AuthContext);
+  const { login, register, googleLogin } = useContext(AuthContext);
   const { showToast } = usePopup();
   const navigate = useNavigate();
 
   const [isRegister, setIsRegister] = useState(false); // Toggle between Login and Register
+  const [showMockModal, setShowMockModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -17,6 +18,69 @@ export default function Login() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Dynamically load official Google script
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+
+    script.onload = () => {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (clientId && window.google) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse
+        });
+      }
+    };
+
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []);
+
+  const handleGoogleCredentialResponse = async (response) => {
+    setLoading(true);
+    setError('');
+    try {
+      await googleLogin({ token: response.credential, is_mock: false });
+      showToast('Successfully logged in with Google!', 'success');
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Google Sign-In failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLoginClick = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (clientId && window.google) {
+      window.google.accounts.id.prompt();
+    } else {
+      setShowMockModal(true);
+    }
+  };
+
+  const handleMockSelect = async (account) => {
+    setShowMockModal(false);
+    setLoading(true);
+    setError('');
+    try {
+      await googleLogin({ is_mock: true, email: account.email, name: account.name });
+      showToast(`Welcome back, ${account.name}! (Simulated Google Login)`, 'success');
+      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Simulated Google Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -199,6 +263,93 @@ export default function Login() {
         .toggle-form-link:hover {
           text-decoration: underline;
         }
+
+        .mock-modal-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2000;
+          animation: fadeIn 0.2s ease;
+        }
+        .mock-modal {
+          background: #003554;
+          border: 1px solid #00a6fb;
+          border-radius: 24px;
+          padding: 30px;
+          max-width: 400px;
+          width: 90%;
+          position: relative;
+          color: white;
+          box-shadow: 0 10px 30px rgba(0, 166, 251, 0.3);
+        }
+        .close-mock-btn {
+          position: absolute;
+          top: 10px; right: 15px;
+          background: transparent;
+          border: none;
+          color: #00a6fb;
+          font-size: 28px;
+          cursor: pointer;
+        }
+        .mock-title {
+          font-size: 20px;
+          font-weight: 700;
+          color: #00a6fb;
+          margin-bottom: 5px;
+          text-align: center;
+        }
+        .mock-subtitle {
+          font-size: 13px;
+          color: #ccc;
+          margin-bottom: 20px;
+          text-align: center;
+          line-height: 1.4;
+        }
+        .mock-accounts-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .mock-account-item {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+          padding: 12px 15px;
+          border: 1px solid rgba(0, 166, 251, 0.3);
+          border-radius: 16px;
+          cursor: pointer;
+          transition: all 0.2s;
+          background: rgba(5, 25, 35, 0.4);
+        }
+        .mock-account-item:hover {
+          background: #00a6fb;
+          border-color: white;
+        }
+        .mock-avatar {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          object-fit: cover;
+        }
+        .mock-info {
+          display: flex;
+          flex-direction: column;
+        }
+        .mock-name {
+          font-size: 14px;
+          font-weight: 600;
+        }
+        .mock-email {
+          font-size: 12px;
+          color: #ccc;
+        }
+        .mock-account-item:hover .mock-email {
+          color: #e2f3f4;
+        }
       `}} />
 
       <div className="login-container">
@@ -262,7 +413,7 @@ export default function Login() {
         <div className="social-login-section">
           <div className="social-login-text">Or sign {isRegister ? 'up' : 'in'} with</div>
           <div className="social-buttons-row">
-            <div className="social-circle-btn">
+            <div className="social-circle-btn" onClick={handleGoogleLoginClick} title="Sign in with Google">
               <svg viewBox="0 0 488 512" xmlns="http://www.w3.org/2000/svg">
                 <path d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
               </svg>
@@ -284,6 +435,33 @@ export default function Login() {
           {isRegister ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
         </div>
       </div>
+
+      {showMockModal && (
+        <div className="mock-modal-overlay">
+          <div className="mock-modal">
+            <button className="close-mock-btn" onClick={() => setShowMockModal(false)}>&times;</button>
+            <h3 className="mock-title">Select Google Account</h3>
+            <p className="mock-subtitle">No Google Client ID configured in Vercel/Render env. Testing with a simulated Google login:</p>
+            
+            <div className="mock-accounts-list">
+              {[
+                { name: 'Arya Shah', email: 'aryaaryashah@gmail.com', img: '/artist-03.png' },
+                { name: 'Rahul Sharma', email: 'rahul.sharma@gmail.com', img: '/artist-01.png' },
+                { name: 'Priya Patel', email: 'priya.patel@gmail.com', img: '/artist-02.png' },
+                { name: 'Guest User', email: 'guest@gmail.com', img: '/artist-05.png' }
+              ].map((acc, idx) => (
+                <div key={idx} className="mock-account-item" onClick={() => handleMockSelect(acc)}>
+                  <img src={acc.img} alt="" className="mock-avatar" />
+                  <div className="mock-info">
+                    <span className="mock-name">{acc.name}</span>
+                    <span className="mock-email">{acc.email}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

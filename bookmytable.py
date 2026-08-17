@@ -84,6 +84,60 @@ def login():
 
     return jsonify({'message': 'Login successful!', 'user': user_info})
 
+# API Route: Google Login
+@app.route('/api/google-login', methods=['POST'])
+def google_login():
+    data = request.json
+    token = data.get('token')
+    is_mock = data.get('is_mock', False)
+    
+    if is_mock:
+        email = data.get('email')
+        name = data.get('name')
+        if not email or not name:
+            return jsonify({'error': 'Mock email and name are required'}), 400
+    else:
+        if not token:
+            return jsonify({'error': 'Google token is required'}), 400
+        
+        try:
+            from google.oauth2 import id_token
+            from google.auth.transport import requests
+            
+            client_id = os.environ.get('VITE_GOOGLE_CLIENT_ID')
+            if not client_id:
+                return jsonify({'error': 'Backend Google Client ID is not configured'}), 500
+                
+            idinfo = id_token.verify_oauth2_token(token, requests.Request(), client_id)
+            email = idinfo['email']
+            name = idinfo.get('name', email.split('@')[0])
+        except ValueError:
+            return jsonify({'error': 'Invalid Google token'}), 401
+        except Exception as e:
+            return jsonify({'error': f'Google verification error: {str(e)}'}), 500
+
+    user = db.users.find_one({'email': email})
+    if not user:
+        is_admin = (email.lower() == 'admin@brewtopia.com')
+        user_doc = {
+            'name': name,
+            'email': email,
+            'password': '',
+            'is_admin': is_admin,
+            'created_at': datetime.datetime.utcnow()
+        }
+        result = db.users.insert_one(user_doc)
+        user_doc['id'] = str(result.inserted_id)
+        if '_id' in user_doc:
+            del user_doc['_id']
+        user = user_doc
+    else:
+        user = serialize_doc(user)
+        if 'password' in user:
+            del user['password']
+            
+    return jsonify({'message': 'Google Login successful!', 'user': user}), 200
+
 # API Route: Book a Table
 @app.route('/api/book-table', methods=['POST'])
 def book_table():
